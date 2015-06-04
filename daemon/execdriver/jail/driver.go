@@ -30,6 +30,9 @@ const DriverName = "jail"
 const Version = "0.1"
 
 func init() {
+	//
+	// TODO: autoload linux and linux64 kernel modules
+	//
 	// execdriver.RegisterInitFunc(DriverName, func(args *execdriver.InitArgs) error {
 	// 	runtime.LockOSThread()
 
@@ -110,6 +113,18 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 		"allow.raw_sockets=1", // TODO: this must be put in an option
 	}
 
+	// TODO: there must be a better way to detect linux
+	if out, err := exec.Command(root, "/bin/sh -c 'uname -s'").Output(); string(out) == "Linux" {
+		if err != nil {
+			logrus.Warnf("Probing binary type for %s failed", c.ProcessConfig.Entrypoint)
+		} else {
+			params = append(params,
+				"mount='linprocfs " + root + "/proc linprocfs rw 0 0'",
+				"mount='linsysfs " + root + "/sys linsysfs rw 0 0'",
+			)
+		}
+	}
+
 	if c.Network.Interface != nil {
 		// for some reason if HostNetworking is enabled, c.Network doesnt contain interface name and ip 
 		if !c.Network.HostNetworking {	
@@ -163,9 +178,11 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 	<-waitLock
 	exitCode := getExitCode(c)
 
-	if err := exec.Command("umount", root + "/dev").Run(); err != nil { 		
+	if err := exec.Command("umount", root + "/dev").Run(); err != nil {
 		logrus.Debugf("umount %s failed: %s", c.ID, err);
 	}
+	exec.Command("umount", root + "/proc").Run()
+	exec.Command("umount", root + "/sys").Run()
 
 	return execdriver.ExitStatus{ExitCode: exitCode, OOMKilled: false}, waitErr
 }
@@ -404,3 +421,4 @@ func (t *TtyConsole) Close() error {
 	t.SlavePty.Close()
 	return t.MasterPty.Close()
 }
+
