@@ -14,13 +14,12 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-
+	"github.com/docker/docker/pkg/term"
 	"github.com/kr/pty"
 	"io"
-	"github.com/docker/docker/pkg/term"
 
-	"strings"
 	"errors"
+	"strings"
 
 	"bytes"
 	"strconv"
@@ -84,8 +83,8 @@ func copyFile(src string, dest string) error {
 
 func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallback execdriver.StartCallback) (execdriver.ExitStatus, error) {
 	var (
-		term    execdriver.Terminal
-		err 		error
+		term execdriver.Terminal
+		err  error
 	)
 
 	// setting terminal parameters
@@ -119,25 +118,25 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 			logrus.Warnf("Probing binary type for %s failed", c.ProcessConfig.Entrypoint)
 		} else {
 			params = append(params,
-				"mount='linprocfs " + root + "/proc linprocfs rw 0 0'",
-				"mount='linsysfs " + root + "/sys linsysfs rw 0 0'",
+				"mount='linprocfs "+root+"/proc linprocfs rw 0 0'",
+				"mount='linsysfs "+root+"/sys linsysfs rw 0 0'",
 			)
 		}
 	}
 
 	if c.Network.Interface != nil {
-		// for some reason if HostNetworking is enabled, c.Network doesnt contain interface name and ip 
-		if !c.Network.HostNetworking {	
+		// for some reason if HostNetworking is enabled, c.Network doesnt contain interface name and ip
+		if !c.Network.HostNetworking {
 			params = append(params,
-				"interface=" + c.Network.Interface.Bridge,
-				"ip4.addr=" + fmt.Sprintf("%s/%d", c.Network.Interface.IPAddress, c.Network.Interface.IPPrefixLen),
+				"interface="+c.Network.Interface.Bridge,
+				"ip4.addr="+fmt.Sprintf("%s/%d", c.Network.Interface.IPAddress, c.Network.Interface.IPPrefixLen),
 			)
 		}
 	} else {
 		logrus.Debug("[jail] networking is disabled")
 	}
 
-	params = append(params, "command=" + c.ProcessConfig.Entrypoint)
+	params = append(params, "command="+c.ProcessConfig.Entrypoint)
 	params = append(params, c.ProcessConfig.Arguments...)
 
 	c.ProcessConfig.Path = "/usr/sbin/jail"
@@ -150,7 +149,7 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 		return execdriver.ExitStatus{ExitCode: -1}, err
 	}
 
-	logrus.Debug("[jail] jail started");
+	logrus.Debug("[jail] jail started")
 
 	var (
 		waitErr  error
@@ -174,23 +173,22 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 		startCallback(&c.ProcessConfig, pid)
 	}
 
-
 	<-waitLock
 	exitCode := getExitCode(c)
 
-	if err := exec.Command("umount", root + "/dev").Run(); err != nil {
-		logrus.Debugf("umount %s failed: %s", c.ID, err);
+	if err := exec.Command("umount", root+"/dev").Run(); err != nil {
+		logrus.Debugf("umount %s failed: %s", c.ID, err)
 	}
-	exec.Command("umount", root + "/proc").Run()
-	exec.Command("umount", root + "/sys").Run()
+	exec.Command("umount", root+"/proc").Run()
+	exec.Command("umount", root+"/sys").Run()
 
 	return execdriver.ExitStatus{ExitCode: exitCode, OOMKilled: false}, waitErr
 }
 
 func (d *driver) Exec(c *execdriver.Command, processConfig *execdriver.ProcessConfig, pipes *execdriver.Pipes, startCallback execdriver.StartCallback) (int, error) {
 	var (
-		term    execdriver.Terminal
-		err 		error
+		term execdriver.Terminal
+		err  error
 	)
 
 	// setting terminal parameters
@@ -209,7 +207,7 @@ func (d *driver) Exec(c *execdriver.Command, processConfig *execdriver.ProcessCo
 	// build params for the jail
 	params := []string{
 		"/usr/sbin/jexec",
-		c.ID,		
+		c.ID,
 		processConfig.Entrypoint,
 	}
 
@@ -225,7 +223,7 @@ func (d *driver) Exec(c *execdriver.Command, processConfig *execdriver.ProcessCo
 		return -1, err
 	}
 
-	logrus.Debug("jexec started");
+	logrus.Debug("jexec started")
 
 	var (
 		waitErr  error
@@ -275,11 +273,11 @@ func (d *driver) Kill(c *execdriver.Command, sig int) error {
 }
 
 func (d *driver) Pause(c *execdriver.Command) error {
-	return errors.New("pause is not supported for jail execdriver");
+	return errors.New("pause is not supported for jail execdriver")
 }
 
 func (d *driver) Unpause(c *execdriver.Command) error {
-	return errors.New("pause is not supported for jail execdriver");
+	return errors.New("pause is not supported for jail execdriver")
 }
 
 func (d *driver) Terminate(c *execdriver.Command) error {
@@ -291,34 +289,34 @@ func (d *driver) Terminate(c *execdriver.Command) error {
 
 func (d *driver) GetPidsForContainer(id string) ([]int, error) {
 
-	cmd := exec.Command("ps", "-opid","-xaJ", id)  
-  var out bytes.Buffer
-  cmd.Stdout = &out
-  err := cmd.Run()
-  if err != nil {
-      return nil, err
-  }
+	cmd := exec.Command("ps", "-opid", "-xaJ", id)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
 
-  pids := make([]int, 0)
-  for {
-    line, err := out.ReadString('\n')
-    if err!=nil {
-        break;
-    }
+	pids := make([]int, 0)
+	for {
+		line, err := out.ReadString('\n')
+		if err != nil {
+			break
+		}
 
-    tokens := strings.Split(line, "\n")  
-    pid, err := strconv.Atoi(tokens[0])
-    if(pid == 0) {
-    	continue
-    }
+		tokens := strings.Split(line, "\n")
+		pid, err := strconv.Atoi(tokens[0])
+		if pid == 0 {
+			continue
+		}
 
-    if err!=nil {
-        continue
-    }      
-    pids = append(pids, pid)
-  }
+		if err != nil {
+			continue
+		}
+		pids = append(pids, pid)
+	}
 
-  return pids, nil
+	return pids, nil
 }
 
 func (d *driver) Clean(id string) error {
@@ -326,7 +324,7 @@ func (d *driver) Clean(id string) error {
 	return nil
 }
 
-func (d *driver) Stats(id string) (*execdriver.ResourceStats, error)  {
+func (d *driver) Stats(id string) (*execdriver.ResourceStats, error) {
 	logrus.Debugf("jail stats %s", id)
 	return nil, nil
 }
@@ -347,7 +345,6 @@ func (info *info) IsRunning() bool {
 
 	return false
 }
-
 
 // ===
 
@@ -421,4 +418,3 @@ func (t *TtyConsole) Close() error {
 	t.SlavePty.Close()
 	return t.MasterPty.Close()
 }
-
