@@ -43,6 +43,10 @@ func GenerateRandomID() string {
 		if _, err := strconv.ParseInt(TruncateID(value), 10, 64); err == nil {
 			continue
 		}
+		// Also check that the first character isn't an integer as that makes jail unhappy.
+		if _, err := strconv.ParseInt(value[:1], 10, 64); err == nil {
+			continue
+		}
 		return value
 	}
 }
